@@ -3,6 +3,7 @@ import { quizMetadata, getQuestionsForQuiz } from './data/mcqData';
 import { QuestionType, UserProgress, QuizMetadata, Question } from './types';
 import QuestionCard from './components/QuestionCard';
 import Button from './components/Button';
+import DarkModeToggle from './components/DarkModeToggle';
 import { getAiExplanation } from './services/geminiService';
 import { db } from './services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -269,16 +270,19 @@ const App: React.FC = () => {
 
   if (!activeQuizId) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center py-12 px-4">
+      <div className="min-h-screen flex flex-col items-center py-12 px-4 transition-colors duration-300 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+        <div className="absolute top-6 right-6">
+          <DarkModeToggle />
+        </div>
         <header className="mb-12 text-center max-w-2xl w-full">
-          <div className="inline-flex p-3 bg-indigo-600 text-white rounded-2xl mb-4 shadow-lg shadow-indigo-200">
+          <div className="inline-flex p-3 bg-indigo-600 dark:bg-indigo-500 text-white rounded-2xl mb-4 shadow-lg shadow-indigo-200 dark:shadow-indigo-900/20">
             <i className="fas fa-graduation-cap text-3xl"></i>
           </div>
-          <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight mb-2 text-center w-full">ServiceNow CAD Practice</h1>
-          <p className="text-lg text-slate-600">Unified progress synced across all your devices.</p>
+          <h1 className="text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-2 text-center w-full">ServiceNow CAD Practice</h1>
+          <p className="text-lg text-slate-600 dark:text-slate-400">Unified progress synced across all your devices.</p>
           
           {syncError ? (
-            <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+            <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-xl text-amber-800 dark:text-amber-300 text-sm flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
               <i className="fas fa-exclamation-triangle text-amber-500 text-lg"></i>
               <div className="text-left">
                 <p className="font-bold">Sync Problem</p>
@@ -286,7 +290,7 @@ const App: React.FC = () => {
               </div>
             </div>
           ) : isSyncing && (
-            <div className="mt-2 text-xs text-indigo-500 font-bold animate-pulse">
+            <div className="mt-2 text-xs text-indigo-500 dark:text-indigo-400 font-bold animate-pulse">
               <i className="fas fa-cloud-upload-alt mr-1"></i> Syncing global progress...
             </div>
           )}
@@ -299,35 +303,35 @@ const App: React.FC = () => {
             const isStarted = stats.attempted > 0 || (progress.lastIndices?.[quiz.id] !== undefined && progress.lastIndices[quiz.id] > 0);
             
             return (
-              <div key={quiz.id} className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden hover:scale-[1.02] transition-transform duration-300 flex flex-col">
+              <div key={quiz.id} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden hover:scale-[1.02] transition-transform duration-300 flex flex-col">
                 <div className="p-6 flex-grow">
                   <div className="flex justify-between items-start mb-4">
-                    <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
+                    <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1 rounded-full">
                       CAD ServiceNow
                     </span>
                     {isCompleted && (
                       <i className="fas fa-check-circle text-emerald-500 text-xl animate-in zoom-in duration-300"></i>
                     )}
                   </div>
-                  <h3 className="text-xl font-bold text-slate-900 mb-2">{quiz.title}</h3>
-                  <p className="text-slate-500 text-sm mb-6 leading-relaxed">{quiz.description}</p>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{quiz.title}</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm mb-6 leading-relaxed">{quiz.description}</p>
                   
                   <div className="mb-6">
                     <div className="flex justify-between text-xs font-bold mb-2">
-                      <span className="text-slate-400 uppercase tracking-widest">Global Progress</span>
-                      <span className={isCompleted ? 'text-emerald-600' : 'text-indigo-600'}>
+                      <span className="text-slate-400 dark:text-slate-500 uppercase tracking-widest">Global Progress</span>
+                      <span className={isCompleted ? 'text-emerald-600 dark:text-emerald-400' : 'text-indigo-600 dark:text-indigo-400'}>
                         {stats.percent}% ({stats.attempted}/{stats.total})
                       </span>
                     </div>
-                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                       <div 
-                        className={`h-full transition-all duration-1000 ease-out rounded-full ${isCompleted ? 'bg-emerald-500' : 'bg-indigo-600'}`}
+                        className={`h-full transition-all duration-1000 ease-out rounded-full ${isCompleted ? 'bg-emerald-500' : 'bg-indigo-600 dark:bg-indigo-500'}`}
                         style={{ width: `${stats.percent}%` }}
                       ></div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4 mb-6 text-sm text-slate-400 font-medium">
+                  <div className="flex items-center gap-4 mb-6 text-sm text-slate-400 dark:text-slate-500 font-medium">
                     <span className="flex items-center gap-1.5"><i className="far fa-question-circle"></i> {quiz.questionCount} Questions</span>
                   </div>
 
@@ -341,9 +345,9 @@ const App: React.FC = () => {
           })}
         </div>
 
-        <footer className="mt-16 text-slate-400 text-sm flex items-center gap-4">
+        <footer className="mt-16 text-slate-400 dark:text-slate-600 text-sm flex items-center gap-4">
           <span>&copy; 2024 ServiceNow CAD Master</span>
-          <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+          <span className="w-1 h-1 bg-slate-300 dark:bg-slate-700 rounded-full"></span>
           <span>Shared Learning Mode Active</span>
         </footer>
       </div>
@@ -357,32 +361,32 @@ const App: React.FC = () => {
     const mistakesCount = questionsInQuiz.length - correctCount;
     
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-50">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 text-center animate-in zoom-in duration-500">
-          <div className="w-24 h-24 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-300 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+        <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-8 text-center animate-in zoom-in duration-500 border border-slate-200 dark:border-slate-800">
+          <div className="w-24 h-24 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">
             <i className="fas fa-star"></i>
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Set Complete!</h1>
-          <p className="text-slate-500 mb-8">
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Set Complete!</h1>
+          <p className="text-slate-500 dark:text-slate-400 mb-8">
             {correctCount === questionsInQuiz.length 
               ? "Flawless! You're ready for the exam." 
               : `You scored ${correctCount} out of ${questionsInQuiz.length}.`}
           </p>
           
           <div className="grid grid-cols-2 gap-4 mb-8">
-            <div className="bg-slate-50 p-4 rounded-2xl">
-              <span className="block text-3xl font-bold text-indigo-600">{correctCount}</span>
-              <span className="text-xs uppercase font-bold text-slate-400 tracking-wider">Correct</span>
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl">
+              <span className="block text-3xl font-bold text-indigo-600 dark:text-indigo-400">{correctCount}</span>
+              <span className="text-xs uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider">Correct</span>
             </div>
-            <div className="bg-slate-50 p-4 rounded-2xl">
-              <span className="block text-3xl font-bold text-slate-600">{Math.round((correctCount / questionsInQuiz.length) * 100)}%</span>
-              <span className="text-xs uppercase font-bold text-slate-400 tracking-wider">Accuracy</span>
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl">
+              <span className="block text-3xl font-bold text-slate-600 dark:text-slate-300">{Math.round((correctCount / questionsInQuiz.length) * 100)}%</span>
+              <span className="text-xs uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider">Accuracy</span>
             </div>
           </div>
 
           <div className="space-y-3">
             {mistakesCount > 0 && (
-              <Button onClick={startReview} variant="outline" className="w-full py-4 text-lg border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-400">
+              <Button onClick={startReview} variant="outline" className="w-full py-4 text-lg border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:border-rose-400">
                 Review Mistakes <i className="fas fa-search ml-2 text-sm"></i>
               </Button>
             )}
@@ -401,28 +405,31 @@ const App: React.FC = () => {
   if (!currentQuestion) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
-      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-slate-200">
+    <div className="min-h-screen pb-20 transition-colors duration-300 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+      <header className="sticky top-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-          <button onClick={() => setActiveQuizId(null)} className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-medium transition-colors">
+          <button onClick={() => setActiveQuizId(null)} className="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium transition-colors">
             <i className="fas fa-chevron-left text-xs"></i> Dashboard
           </button>
           <div className="flex flex-col items-center">
-            <div className="text-sm font-bold text-slate-800 tracking-tight text-center">
+            <div className="text-sm font-bold text-slate-800 dark:text-white tracking-tight text-center">
               {isReviewMode ? 'Review Mode' : quizMetadata.find(m => m.id === activeQuizId)?.title}
             </div>
-            <div className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest">
+            <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-widest">
               Question {currentIndex + 1} of {currentQuestionsSet.length}
             </div>
           </div>
-          <div className="w-20 text-right">
-             {isSyncing ? <i className="fas fa-sync fa-spin text-indigo-400 text-xs"></i> : syncError && <i className="fas fa-cloud-slash text-rose-400 text-xs" title={syncError}></i>}
+          <div className="flex items-center gap-4">
+             <DarkModeToggle />
+             <div className="w-10 text-right">
+                {isSyncing ? <i className="fas fa-sync fa-spin text-indigo-400 text-xs"></i> : syncError && <i className="fas fa-cloud-slash text-rose-400 text-xs" title={syncError}></i>}
+             </div>
           </div>
         </div>
         
-        <div className="w-full h-1 bg-slate-100">
+        <div className="w-full h-1 bg-slate-100 dark:bg-slate-800">
           <div 
-            className={`h-full transition-all duration-500 ease-out ${isReviewMode ? 'bg-rose-500' : 'bg-indigo-600'}`}
+            className={`h-full transition-all duration-500 ease-out ${isReviewMode ? 'bg-rose-500' : 'bg-indigo-600 dark:bg-indigo-500'}`}
             style={{ width: `${progressPercentage}%` }}
           ></div>
         </div>
@@ -431,10 +438,10 @@ const App: React.FC = () => {
       <main className="max-w-3xl mx-auto px-4 mt-8">
         {isReviewMode && (
           <div className="mb-4 flex justify-between items-center">
-            <span className="text-xs font-bold text-rose-600 bg-rose-50 px-3 py-1 rounded-full border border-rose-100">
+            <span className="text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 px-3 py-1 rounded-full border border-rose-100 dark:border-rose-900/50">
               <i className="fas fa-history mr-1.5"></i> Reviewing Mistakes
             </span>
-            <button onClick={() => setShowResults(true)} className="text-xs text-slate-400 hover:text-slate-600 underline">
+            <button onClick={() => setShowResults(true)} className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 underline">
               Stop Review
             </button>
           </div>
@@ -456,16 +463,16 @@ const App: React.FC = () => {
         />
       </main>
 
-      <footer className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 md:hidden">
+      <footer className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 p-4 md:hidden">
         <div className="flex justify-around items-center max-w-lg mx-auto">
           <div className="text-center">
-             <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Progress</span>
-             <span className="font-bold text-indigo-600">{currentIndex + 1}/{currentQuestionsSet.length}</span>
+             <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Progress</span>
+             <span className="font-bold text-indigo-600 dark:text-indigo-400">{currentIndex + 1}/{currentQuestionsSet.length}</span>
           </div>
-          <div className="h-8 w-px bg-slate-100"></div>
+          <div className="h-8 w-px bg-slate-100 dark:bg-slate-800"></div>
           <div className="text-center">
-             <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Global Sync</span>
-             <span className="font-bold text-slate-700 text-sm">Active</span>
+             <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Global Sync</span>
+             <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">Active</span>
           </div>
         </div>
       </footer>

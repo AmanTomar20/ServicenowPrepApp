@@ -39,23 +39,23 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
 
     if (!isSubmitted) {
       return isSelected 
-        ? "border-indigo-600 bg-indigo-50 ring-2 ring-indigo-200" 
-        : "border-slate-200 bg-white hover:border-indigo-300";
+        ? "border-indigo-600 bg-indigo-50 ring-2 ring-indigo-200 dark:bg-indigo-950/30 dark:ring-indigo-900/50" 
+        : "border-slate-200 bg-white hover:border-indigo-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-700";
     }
 
     if (isCorrect) {
       if (isSelected) {
-        return "border-emerald-500 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-200";
+        return "border-emerald-500 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-900/50";
       } else {
-        return "border-emerald-400 border-dashed bg-emerald-50/50 text-emerald-800 ring-1 ring-emerald-100";
+        return "border-emerald-400 border-dashed bg-emerald-50/50 text-emerald-800 ring-1 ring-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:ring-emerald-900/30";
       }
     }
     
     if (isSelected && !isCorrect) {
-      return "border-rose-500 bg-rose-50 text-rose-800 ring-2 ring-rose-200";
+      return "border-rose-500 bg-rose-50 text-rose-800 ring-2 ring-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:ring-rose-900/50";
     }
     
-    return "border-slate-200 bg-slate-50 opacity-50";
+    return "border-slate-200 bg-slate-50 opacity-50 dark:border-slate-800 dark:bg-slate-900/50";
   };
 
   const getIcon = (index: number) => {
@@ -80,9 +80,9 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500 border border-slate-200 dark:border-slate-800">
       {/* Header */}
-      <div className="bg-indigo-600 p-6 text-white">
+      <div className="bg-indigo-600 dark:bg-indigo-700 p-6 text-white">
         <div className="flex justify-between items-center mb-2">
           <span className="text-xs font-bold uppercase tracking-widest opacity-80">{question.category}</span>
           <span className="text-xs bg-white/20 px-2 py-1 rounded-full">{isMultiple ? 'Multiple Correct' : 'Single Correct'}</span>
@@ -114,11 +114,11 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
       </div>
 
       {/* Footer / Actions */}
-      <div className="p-6 bg-slate-50 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+      <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
         {/* Navigation Left */}
         <div className="flex justify-start order-2 sm:order-1">
           {!isFirst && (
-            <Button variant="outline" onClick={onPrev} className="w-full sm:w-auto">
+            <Button variant="outline" onClick={onPrev} className="w-full sm:w-auto dark:bg-slate-900">
               <i className="fas fa-chevron-left mr-2"></i> Previous
             </Button>
           )}
@@ -139,9 +139,9 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
               variant="outline" 
               onClick={onAskAi} 
               isLoading={isAiLoading}
-              className="bg-white w-full sm:w-auto"
+              className="bg-white dark:bg-slate-900 w-full sm:w-auto"
             >
-              <i className="fas fa-robot text-indigo-500"></i> AI Explanation
+              <i className="fas fa-robot text-indigo-500 dark:text-indigo-400"></i> AI Explanation
             </Button>
           )}
         </div>
@@ -160,14 +160,14 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
 
       {/* AI Explanation Section */}
       {aiExplanation && isSubmitted && (
-        <div className="p-6 border-t border-slate-100 bg-indigo-50 animate-in zoom-in-95 duration-300">
+        <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-indigo-50 dark:bg-indigo-950/30 animate-in zoom-in-95 duration-300">
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-              <i className="fas fa-robot text-indigo-600"></i>
+            <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center flex-shrink-0">
+              <i className="fas fa-robot text-indigo-600 dark:text-indigo-400"></i>
             </div>
             <div>
-              <h4 className="font-bold text-indigo-900 text-sm mb-1 uppercase tracking-wider">AI Insight</h4>
-              <p className="text-indigo-800 text-sm leading-relaxed whitespace-pre-wrap">{aiExplanation}</p>
+              <h4 className="font-bold text-indigo-900 dark:text-indigo-200 text-sm mb-1 uppercase tracking-wider">AI Insight</h4>
+              <p className="text-indigo-800 dark:text-indigo-300 text-sm leading-relaxed whitespace-pre-wrap">{aiExplanation}</p>
             </div>
           </div>
         </div>
@@ -175,14 +175,14 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
 
       {/* Static Explanation (if provided in data) */}
       {!aiExplanation && isSubmitted && question.explanation && (
-        <div className="p-6 border-t border-slate-100 bg-emerald-50">
+        <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-emerald-50 dark:bg-emerald-950/30">
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-              <i className="fas fa-info-circle text-emerald-600"></i>
+            <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center flex-shrink-0">
+              <i className="fas fa-info-circle text-emerald-600 dark:text-emerald-400"></i>
             </div>
             <div>
-              <h4 className="font-bold text-emerald-900 text-sm mb-1 uppercase tracking-wider">Explanation</h4>
-              <p className="text-emerald-800 text-sm leading-relaxed whitespace-pre-wrap">{question.explanation}</p>
+              <h4 className="font-bold text-emerald-900 dark:text-emerald-200 text-sm mb-1 uppercase tracking-wider">Explanation</h4>
+              <p className="text-emerald-800 dark:text-emerald-300 text-sm leading-relaxed whitespace-pre-wrap">{question.explanation}</p>
             </div>
           </div>
         </div>
