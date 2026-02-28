@@ -1,20 +1,23 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# AI-Powered MCQ Master
 
-# Run and deploy your AI Studio app
+A responsive multiple-choice question practice platform with immediate feedback, progress tracking, and AI-powered explanations.
 
-This contains everything you need to run your app locally.
+## Deployment to Netlify
 
-View your app in AI Studio: https://ai.studio/apps/drive/1OTOZDnD6Q0cqpkXXBEJ3e5_XsRgLYMVN
+To deploy this project to Netlify:
 
-## Run Locally
+1.  **Connect to GitHub**: Push this repository to your GitHub account.
+2.  **Create a New Site**: In Netlify, select "Import from git" and choose this repository.
+3.  **Build Settings**:
+    *   **Build Command**: `npm run build`
+    *   **Publish Directory**: `dist`
+4.  **Environment Variables**:
+    *   Go to **Site settings > Environment variables**.
+    *   Add `GEMINI_API_KEY` with your Google Gemini API key.
+5.  **Deploy**: Click "Deploy site".
 
-**Prerequisites:**  Node.js
+## Local Development
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+1.  Install dependencies: `npm install`
+2.  Create a `.env` file and add `GEMINI_API_KEY=your_key_here`.
+3.  Start the dev server: `npm run dev`

@@ -31,5 +31,6 @@ export interface UserProgress {
   score: number;
   totalAnswered: number;
   results: Record<string, QuestionResult>;
-  completedQuizzes: string[]; // Store IDs of completed quizzes
+  completedQuizzes: string[];
+  lastIndices: Record<string, number>; // Maps quizId to the last viewed question index
 }

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Question, QuestionType } from '../types';
 import Button from './Button';
@@ -10,6 +9,8 @@ interface QuestionCardProps {
   onSubmit: () => void;
   isSubmitted: boolean;
   onNext: () => void;
+  onPrev: () => void;
+  isFirst: boolean;
   isLast: boolean;
   aiExplanation?: string;
   onAskAi: () => void;
@@ -23,6 +24,8 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
   onSubmit,
   isSubmitted,
   onNext,
+  onPrev,
+  isFirst,
   isLast,
   aiExplanation,
   onAskAi,
@@ -40,18 +43,14 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
         : "border-slate-200 bg-white hover:border-indigo-300";
     }
 
-    // Feedback state
-    // Correct options should be green (Emerald) regardless of selection
     if (isCorrect) {
       if (isSelected) {
         return "border-emerald-500 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-200";
       } else {
-        // Missed correct option - keep as green but distinct (dashed/lighter)
         return "border-emerald-400 border-dashed bg-emerald-50/50 text-emerald-800 ring-1 ring-emerald-100";
       }
     }
     
-    // Incorrect selection - only these stay red (Rose)
     if (isSelected && !isCorrect) {
       return "border-rose-500 bg-rose-50 text-rose-800 ring-2 ring-rose-200";
     }
@@ -65,7 +64,6 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
 
     if (isSubmitted) {
       if (isCorrect && isSelected) return <i className="fas fa-check-circle text-emerald-600"></i>;
-      // Missed correct answer is now emerald as requested
       if (isCorrect && !isSelected) return <i className="fas fa-check-circle text-emerald-400/70" title="Correct answer missed"></i>;
       if (isSelected && !isCorrect) return <i className="fas fa-times-circle text-rose-600"></i>;
     }
@@ -89,7 +87,8 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
           <span className="text-xs font-bold uppercase tracking-widest opacity-80">{question.category}</span>
           <span className="text-xs bg-white/20 px-2 py-1 rounded-full">{isMultiple ? 'Multiple Correct' : 'Single Correct'}</span>
         </div>
-        <h2 className="text-xl md:text-2xl font-semibold leading-tight">{question.text}</h2>
+        {/* Fixed: added whitespace-pre-wrap to respect \n characters in question text */}
+        <h2 className="text-xl md:text-2xl font-semibold leading-snug whitespace-pre-wrap">{question.text}</h2>
       </div>
 
       {/* Options */}
@@ -105,9 +104,9 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
               {getIcon(index)}
             </div>
             <div className="flex-grow flex justify-between items-center">
-              <span className="font-medium">{option}</span>
+              <span className="font-medium whitespace-pre-wrap">{option}</span>
               {isSubmitted && question.correctIndices.includes(index) && !selectedIndices.includes(index) && (
-                <span className="text-[10px] font-bold uppercase text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded">Correct Answer</span>
+                <span className="text-[10px] font-bold uppercase text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded ml-2 flex-shrink-0">Correct Answer</span>
               )}
             </div>
           </button>
@@ -115,32 +114,48 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
       </div>
 
       {/* Footer / Actions */}
-      <div className="p-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row gap-4 justify-between items-center">
-        {!isSubmitted ? (
-          <Button 
-            className="w-full sm:w-auto px-8"
-            onClick={onSubmit}
-            disabled={selectedIndices.length === 0}
-          >
-            Check Answer
-          </Button>
-        ) : (
-          <div className="flex flex-col sm:flex-row gap-4 w-full justify-between items-center">
-            <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                onClick={onAskAi} 
-                isLoading={isAiLoading}
-                className="bg-white"
-              >
-                <i className="fas fa-robot text-indigo-500"></i> AI Explanation
-              </Button>
-            </div>
-            <Button onClick={onNext} className="w-full sm:w-auto px-8">
-              {isLast ? 'Finish Review' : 'Next Question'} <i className="fas fa-arrow-right ml-2 text-sm"></i>
+      <div className="p-6 bg-slate-50 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+        {/* Navigation Left */}
+        <div className="flex justify-start order-2 sm:order-1">
+          {!isFirst && (
+            <Button variant="outline" onClick={onPrev} className="w-full sm:w-auto">
+              <i className="fas fa-chevron-left mr-2"></i> Previous
             </Button>
-          </div>
-        )}
+          )}
+        </div>
+
+        {/* Primary Action Middle */}
+        <div className="flex justify-center order-1 sm:order-2">
+          {!isSubmitted ? (
+            <Button 
+              className="w-full sm:w-auto px-8"
+              onClick={onSubmit}
+              disabled={selectedIndices.length === 0}
+            >
+              Check Answer
+            </Button>
+          ) : (
+            <Button 
+              variant="outline" 
+              onClick={onAskAi} 
+              isLoading={isAiLoading}
+              className="bg-white w-full sm:w-auto"
+            >
+              <i className="fas fa-robot text-indigo-500"></i> AI Explanation
+            </Button>
+          )}
+        </div>
+
+        {/* Navigation Right */}
+        <div className="flex justify-end order-3 sm:order-3">
+          <Button 
+            variant={isSubmitted ? "primary" : "secondary"}
+            onClick={onNext} 
+            className="w-full sm:w-auto px-8"
+          >
+            {isLast ? 'Finish' : 'Next'} <i className="fas fa-chevron-right ml-2"></i>
+          </Button>
+        </div>
       </div>
 
       {/* AI Explanation Section */}
@@ -167,7 +182,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
             </div>
             <div>
               <h4 className="font-bold text-emerald-900 text-sm mb-1 uppercase tracking-wider">Explanation</h4>
-              <p className="text-emerald-800 text-sm leading-relaxed">{question.explanation}</p>
+              <p className="text-emerald-800 text-sm leading-relaxed whitespace-pre-wrap">{question.explanation}</p>
             </div>
           </div>
         </div>
