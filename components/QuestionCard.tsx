@@ -31,7 +31,18 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
   onAskAi,
   isAiLoading
 }) => {
+  const [copied, setCopied] = React.useState(false);
   const isMultiple = question.type === QuestionType.MULTIPLE;
+
+  const handleCopy = () => {
+    const optionsText = question.options.map((opt, i) => `${String.fromCharCode(65 + i)}) ${opt}`).join('\n');
+    const fullText = `Question: ${question.text}\n\nOptions:\n${optionsText}`;
+    
+    navigator.clipboard.writeText(fullText).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   const getOptionStyles = (index: number) => {
     const isSelected = selectedIndices.includes(index);
@@ -82,9 +93,22 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500 border border-slate-200 dark:border-slate-800">
       {/* Header */}
-      <div className="bg-indigo-600 dark:bg-indigo-700 p-6 text-white">
+      <div className="bg-indigo-600 dark:bg-indigo-700 p-6 text-white relative group">
         <div className="flex justify-between items-center mb-2">
-          <span className="text-xs font-bold uppercase tracking-widest opacity-80">{question.category}</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold uppercase tracking-widest opacity-80">{question.category}</span>
+            <button 
+              onClick={handleCopy}
+              className="text-white/60 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10 flex items-center justify-center"
+              title="Copy question and options"
+            >
+              {copied ? (
+                <i className="fas fa-check text-emerald-400 text-base"></i>
+              ) : (
+                <i className="far fa-copy text-base"></i>
+              )}
+            </button>
+          </div>
           <span className="text-xs bg-white/20 px-2 py-1 rounded-full">{isMultiple ? 'Multiple Correct' : 'Single Correct'}</span>
         </div>
         {/* Fixed: added whitespace-pre-wrap to respect \n characters in question text */}

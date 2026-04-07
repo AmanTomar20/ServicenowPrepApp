@@ -34,3 +34,13 @@ export interface UserProgress {
   completedQuizzes: string[];
   lastIndices: Record<string, number>; // Maps quizId to the last viewed question index
 }
+
+export interface QuizSubmission {
+  id?: string;
+  quizId: string;
+  quizTitle: string;
+  score: number;
+  totalQuestions: number;
+  completedAt: string;
+  results: Record<string, QuestionResult>;
+}

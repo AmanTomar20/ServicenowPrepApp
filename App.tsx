@@ -1,18 +1,19 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { quizMetadata, getQuestionsForQuiz } from './data/mcqData';
-import { QuestionType, UserProgress, QuizMetadata, Question } from './types';
+import { QuestionType, UserProgress, QuizMetadata, Question, QuizSubmission } from './types';
 import QuestionCard from './components/QuestionCard';
 import Button from './components/Button';
 import DarkModeToggle from './components/DarkModeToggle';
 import { getAiExplanation } from './services/geminiService';
 import { db } from './services/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, addDoc, query, orderBy, onSnapshot } from 'firebase/firestore';
 
 const App: React.FC = () => {
   const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showResults, setShowResults] = useState(false);
   const [isReviewMode, setIsReviewMode] = useState(false);
+  const [viewingSubmission, setViewingSubmission] = useState<QuizSubmission | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   
@@ -33,6 +34,7 @@ const App: React.FC = () => {
 
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiExplanations, setAiExplanations] = useState<Record<string, string>>({});
+  const [pastSubmissions, setPastSubmissions] = useState<QuizSubmission[]>([]);
 
   // Fetch initial progress from Firebase on mount
   useEffect(() => {
@@ -58,6 +60,22 @@ const App: React.FC = () => {
       }
     };
     fetchCloudProgress();
+
+    // Fetch past submissions
+    const submissionsRef = collection(db, "users", userId, "submissions");
+    const q = query(submissionsRef, orderBy("completedAt", "desc"));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const subs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as QuizSubmission[];
+      setPastSubmissions(subs);
+    }, (e) => {
+      console.error("Submissions Fetch Error:", e);
+    });
+
+    return () => unsubscribe();
   }, [userId]);
 
   // Track the current index as the user navigates
@@ -106,21 +124,23 @@ const App: React.FC = () => {
     if (!activeQuizId) return [];
     const fullSet = getQuestionsForQuiz(activeQuizId);
     if (isReviewMode) {
-      return fullSet.filter(q => progress.results[q.id] && !progress.results[q.id].isCorrect);
+      const resultsSource = viewingSubmission ? viewingSubmission.results : progress.results;
+      return fullSet.filter(q => resultsSource[q.id] && !resultsSource[q.id].isCorrect);
     }
     return fullSet;
-  }, [activeQuizId, isReviewMode, progress.results]);
+  }, [activeQuizId, isReviewMode, progress.results, viewingSubmission]);
 
   const currentQuestion = currentQuestionsSet[currentIndex];
   
   const currentResult = useMemo(() => {
     if (!currentQuestion) return { selectedIndices: [], isCorrect: false, submitted: false };
-    return progress.results[currentQuestion.id] || { 
+    const resultsSource = viewingSubmission ? viewingSubmission.results : progress.results;
+    return resultsSource[currentQuestion.id] || { 
       selectedIndices: [], 
       isCorrect: false, 
       submitted: false 
     };
-  }, [currentQuestion, progress.results]);
+  }, [currentQuestion, progress.results, viewingSubmission]);
 
   const handleSelect = useCallback((index: number) => {
     if (currentResult.submitted || !currentQuestion) return;
@@ -173,22 +193,55 @@ const App: React.FC = () => {
     }));
   }, [currentQuestion, currentResult, isReviewMode]);
 
-  const handleNext = useCallback(() => {
+  const handleNext = useCallback(async () => {
     if (currentIndex < currentQuestionsSet.length - 1) {
       setCurrentIndex(prev => prev + 1);
     } else {
-      setShowResults(true);
-      setIsReviewMode(false);
-      if (activeQuizId && !isReviewMode) {
-        setProgress(prev => ({
-          ...prev,
-          completedQuizzes: prev.completedQuizzes.includes(activeQuizId) 
-            ? prev.completedQuizzes 
-            : [...prev.completedQuizzes, activeQuizId]
-        }));
+      if (viewingSubmission) {
+        // If we were reviewing a past submission, go back to its summary
+        setIsReviewMode(false);
+        setCurrentIndex(0);
+      } else {
+        setShowResults(true);
+        setIsReviewMode(false);
+        
+        if (activeQuizId && !isReviewMode) {
+          // Save submission to cloud
+          const quizMeta = quizMetadata.find(m => m.id === activeQuizId);
+          const questionsInQuiz = getQuestionsForQuiz(activeQuizId);
+          const quizResults = questionsInQuiz.reduce((acc, q) => {
+            acc[q.id] = progress.results[q.id];
+            return acc;
+          }, {} as Record<string, any>);
+          
+          const correctCount = questionsInQuiz.filter(q => progress.results[q.id]?.isCorrect).length;
+          
+          const submission: QuizSubmission = {
+            quizId: activeQuizId,
+            quizTitle: quizMeta?.title || 'Unknown Quiz',
+            score: correctCount,
+            totalQuestions: questionsInQuiz.length,
+            completedAt: new Date().toISOString(),
+            results: quizResults
+          };
+
+          try {
+            const submissionsRef = collection(db, "users", userId, "submissions");
+            await addDoc(submissionsRef, submission);
+          } catch (e) {
+            console.error("Error saving submission:", e);
+          }
+
+          setProgress(prev => ({
+            ...prev,
+            completedQuizzes: prev.completedQuizzes.includes(activeQuizId) 
+              ? prev.completedQuizzes 
+              : [...prev.completedQuizzes, activeQuizId]
+          }));
+        }
       }
     }
-  }, [currentIndex, currentQuestionsSet.length, activeQuizId, isReviewMode]);
+  }, [currentIndex, currentQuestionsSet.length, activeQuizId, isReviewMode, progress, userId, viewingSubmission]);
 
   const handlePrev = useCallback(() => {
     if (currentIndex > 0) {
@@ -224,6 +277,15 @@ const App: React.FC = () => {
     setCurrentIndex(0);
     setShowResults(false);
     setIsReviewMode(true);
+  };
+
+  const startPastReview = (submission: QuizSubmission) => {
+    setViewingSubmission(submission);
+    setActiveQuizId(submission.quizId);
+    setIsReviewMode(true);
+    setShowResults(false);
+    setCurrentIndex(0);
+    setAiExplanations({});
   };
 
   const handleRestart = () => {
@@ -267,6 +329,50 @@ const App: React.FC = () => {
     const percent = questions.length > 0 ? Math.round((attempted / questions.length) * 100) : 0;
     return { attempted, total: questions.length, percent };
   };
+
+  if (viewingSubmission && !isReviewMode) {
+    const questionsInQuiz = getQuestionsForQuiz(viewingSubmission.quizId);
+    const correctCount = viewingSubmission.score;
+    
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-300 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+        <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-8 text-center animate-in zoom-in duration-500 border border-slate-200 dark:border-slate-800">
+          <div className="w-24 h-24 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">
+            <i className="fas fa-history"></i>
+          </div>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Past Submission</h1>
+          <p className="text-slate-500 dark:text-slate-400 mb-2">
+            {viewingSubmission.quizTitle}
+          </p>
+          <p className="text-xs text-slate-400 mb-8">
+            Completed on {new Date(viewingSubmission.completedAt).toLocaleString()}
+          </p>
+          
+          <div className="grid grid-cols-2 gap-4 mb-8">
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl">
+              <span className="block text-3xl font-bold text-indigo-600 dark:text-indigo-400">{correctCount}</span>
+              <span className="text-xs uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider">Correct</span>
+            </div>
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl">
+              <span className="block text-3xl font-bold text-slate-600 dark:text-slate-300">{Math.round((correctCount / viewingSubmission.totalQuestions) * 100)}%</span>
+              <span className="text-xs uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider">Accuracy</span>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {correctCount < viewingSubmission.totalQuestions && (
+              <Button onClick={() => startPastReview(viewingSubmission)} variant="outline" className="w-full py-4 text-lg border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:border-rose-400">
+                Review Mistakes <i className="fas fa-search ml-2 text-sm"></i>
+              </Button>
+            )}
+            <Button onClick={() => setViewingSubmission(null)} variant="secondary" className="w-full py-4 text-lg">
+              Back to Dashboard
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!activeQuizId) {
     return (
@@ -345,6 +451,51 @@ const App: React.FC = () => {
           })}
         </div>
 
+        {pastSubmissions.length > 0 && (
+          <div className="mt-16 max-w-4xl w-full">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+              <i className="fas fa-history text-indigo-500"></i> Past Submissions
+            </h2>
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                      <th className="p-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Quiz</th>
+                      <th className="p-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Score</th>
+                      <th className="p-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</th>
+                      <th className="p-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {pastSubmissions.map((sub) => (
+                      <tr key={sub.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="p-4 text-sm font-medium text-slate-900 dark:text-white">{sub.quizTitle}</td>
+                        <td className="p-4">
+                          <span className={`text-sm font-bold ${sub.score === sub.totalQuestions ? 'text-emerald-600 dark:text-emerald-400' : 'text-indigo-600 dark:text-indigo-400'}`}>
+                            {sub.score}/{sub.totalQuestions}
+                          </span>
+                        </td>
+                        <td className="p-4 text-sm text-slate-500 dark:text-slate-400">
+                          {new Date(sub.completedAt).toLocaleDateString()}
+                        </td>
+                        <td className="p-4">
+                          <button 
+                            onClick={() => setViewingSubmission(sub)}
+                            className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                          >
+                            View Details
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         <footer className="mt-16 text-slate-400 dark:text-slate-600 text-sm flex items-center gap-4">
           <span>&copy; 2024 ServiceNow CAD Master</span>
           <span className="w-1 h-1 bg-slate-300 dark:bg-slate-700 rounded-full"></span>
@@ -408,8 +559,17 @@ const App: React.FC = () => {
     <div className="min-h-screen pb-20 transition-colors duration-300 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
       <header className="sticky top-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-          <button onClick={() => setActiveQuizId(null)} className="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium transition-colors">
-            <i className="fas fa-chevron-left text-xs"></i> Dashboard
+          <button 
+            onClick={() => {
+              if (viewingSubmission) {
+                setIsReviewMode(false);
+              } else {
+                setActiveQuizId(null);
+              }
+            }} 
+            className="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium transition-colors"
+          >
+            <i className="fas fa-chevron-left text-xs"></i> {viewingSubmission ? 'Back to Summary' : 'Dashboard'}
           </button>
           <div className="flex flex-col items-center">
             <div className="text-sm font-bold text-slate-800 dark:text-white tracking-tight text-center">

@@ -1,0 +1,50 @@
+{
+  "entities": {
+    "UserProgress": {
+      "title": "User Progress",
+      "description": "Stores current quiz results and progress for a user.",
+      "type": "object",
+      "properties": {
+        "score": { "type": "number" },
+        "totalAnswered": { "type": "number" },
+        "results": {
+          "type": "object",
+          "description": "Map of question IDs to results"
+        },
+        "completedQuizzes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "lastIndices": {
+          "type": "object",
+          "description": "Map of quiz IDs to last viewed question index"
+        }
+      },
+      "required": ["score", "totalAnswered", "results", "completedQuizzes"]
+    },
+    "QuizSubmission": {
+      "title": "Quiz Submission",
+      "description": "Record of a completed quiz attempt.",
+      "type": "object",
+      "properties": {
+        "quizId": { "type": "string" },
+        "quizTitle": { "type": "string" },
+        "score": { "type": "number" },
+        "totalQuestions": { "type": "number" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "results": { "type": "object" }
+      },
+      "required": ["quizId", "quizTitle", "score", "totalQuestions", "completedAt", "results"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProgress",
+      "description": "User progress document"
+    },
+    "/users/{userId}/submissions/{submissionId}": {
+      "schema": "QuizSubmission",
+      "description": "Past quiz submissions"
+    }
+  }
+}
