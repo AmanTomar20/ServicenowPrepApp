@@ -18,6 +18,10 @@
         "lastIndices": {
           "type": "object",
           "description": "Map of quiz IDs to last viewed question index"
+        },
+        "quizTimers": {
+          "type": "object",
+          "description": "Map of quiz IDs to remaining time in seconds"
         }
       },
       "required": ["score", "totalAnswered", "results", "completedQuizzes"]

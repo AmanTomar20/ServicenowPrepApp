@@ -35,6 +35,9 @@ const App: React.FC = () => {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiExplanations, setAiExplanations] = useState<Record<string, string>>({});
   const [pastSubmissions, setPastSubmissions] = useState<QuizSubmission[]>([]);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+
+  const QUIZ_DURATION = 30 * 60; // 30 minutes in seconds
 
   // Fetch initial progress from Firebase on mount
   useEffect(() => {
@@ -47,7 +50,8 @@ const App: React.FC = () => {
           setProgress(prev => ({
             ...prev,
             ...cloudProgress,
-            lastIndices: cloudProgress.lastIndices || {}
+            lastIndices: cloudProgress.lastIndices || {},
+            quizTimers: cloudProgress.quizTimers || {}
           }));
           localStorage.setItem('mcq_progress', JSON.stringify(cloudProgress));
         }
@@ -95,6 +99,40 @@ const App: React.FC = () => {
       });
     }
   }, [currentIndex, activeQuizId, isReviewMode, showResults]);
+
+  // Timer Logic
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (activeQuizId && !isReviewMode && !showResults && timeLeft !== null && timeLeft > 0) {
+      timer = setInterval(() => {
+        setTimeLeft(prev => (prev !== null && prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [activeQuizId, isReviewMode, showResults, timeLeft]);
+
+  // Sync timeLeft to progress state
+  useEffect(() => {
+    if (activeQuizId && timeLeft !== null) {
+      setProgress(prev => {
+        if (prev.quizTimers?.[activeQuizId] === timeLeft) return prev;
+        return {
+          ...prev,
+          quizTimers: {
+            ...prev.quizTimers,
+            [activeQuizId]: timeLeft
+          }
+        };
+      });
+    }
+  }, [timeLeft, activeQuizId]);
+
+  // Handle Timer Expiration
+  useEffect(() => {
+    if (timeLeft === 0 && activeQuizId && !showResults && !isReviewMode) {
+      setShowResults(true);
+    }
+  }, [timeLeft, activeQuizId, showResults, isReviewMode]);
 
   // Sync state to Cloud and LocalStorage with debouncing
   useEffect(() => {
@@ -268,6 +306,11 @@ const App: React.FC = () => {
 
     setActiveQuizId(quizId);
     setCurrentIndex(startAt);
+    
+    // Initialize or resume timer
+    const savedTime = progress.quizTimers?.[quizId];
+    setTimeLeft(savedTime !== undefined ? savedTime : QUIZ_DURATION);
+
     setShowResults(false);
     setIsReviewMode(false);
     setAiExplanations({});
@@ -299,13 +342,18 @@ const App: React.FC = () => {
       const newLastIndices = { ...prev.lastIndices };
       delete newLastIndices[activeQuizId];
 
+      const newQuizTimers = { ...prev.quizTimers };
+      delete newQuizTimers[activeQuizId];
+
       return {
         ...prev,
         results: newResults,
-        lastIndices: newLastIndices
+        lastIndices: newLastIndices,
+        quizTimers: newQuizTimers
       };
     });
     
+    setTimeLeft(QUIZ_DURATION);
     setCurrentIndex(0);
     setShowResults(false);
     setIsReviewMode(false);
@@ -328,6 +376,12 @@ const App: React.FC = () => {
     const attempted = questions.filter(q => progress.results[q.id]?.submitted).length;
     const percent = questions.length > 0 ? Math.round((attempted / questions.length) * 100) : 0;
     return { attempted, total: questions.length, percent };
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   if (viewingSubmission && !isReviewMode) {
@@ -575,11 +629,16 @@ const App: React.FC = () => {
             <div className="text-sm font-bold text-slate-800 dark:text-white tracking-tight text-center">
               {isReviewMode ? 'Review Mode' : quizMetadata.find(m => m.id === activeQuizId)?.title}
             </div>
-            <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-widest">
+            <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">
               Question {currentIndex + 1} of {currentQuestionsSet.length}
             </div>
           </div>
           <div className="flex items-center gap-4">
+             {!isReviewMode && timeLeft !== null && (
+               <div className={`text-sm font-bold flex items-center gap-1.5 ${timeLeft < 60 ? 'text-rose-500 animate-pulse' : 'text-indigo-600 dark:text-indigo-400'}`}>
+                 <i className="far fa-clock"></i> {formatTime(timeLeft)}
+               </div>
+             )}
              <DarkModeToggle />
              <div className="w-10 text-right">
                 {isSyncing ? <i className="fas fa-sync fa-spin text-indigo-400 text-xs"></i> : syncError && <i className="fas fa-cloud-slash text-rose-400 text-xs" title={syncError}></i>}

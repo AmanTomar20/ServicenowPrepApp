@@ -33,6 +33,7 @@ export interface UserProgress {
   results: Record<string, QuestionResult>;
   completedQuizzes: string[];
   lastIndices: Record<string, number>; // Maps quizId to the last viewed question index
+  quizTimers?: Record<string, number>; // Maps quizId to remaining time in seconds
 }
 
 export interface QuizSubmission {
