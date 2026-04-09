@@ -1,12 +1,12 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { quizMetadata, getQuestionsForQuiz } from './data/mcqData';
-import { QuestionType, UserProgress, QuizMetadata, Question, QuizSubmission } from './types';
+import { QuestionType, UserProgress, QuizMetadata, Question, QuizSubmission, QuestionResult } from './types';
 import QuestionCard from './components/QuestionCard';
 import Button from './components/Button';
 import DarkModeToggle from './components/DarkModeToggle';
 import { getAiExplanation } from './services/geminiService';
 import { db } from './services/firebase';
-import { doc, getDoc, setDoc, collection, addDoc, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, addDoc, query, orderBy, onSnapshot } from 'firebase/firestore';
 
 const App: React.FC = () => {
   const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
@@ -140,9 +140,12 @@ const App: React.FC = () => {
     
     const syncToCloud = async () => {
       setIsSyncing(true);
+      const userDoc = doc(db, "users", userId);
       try {
-        const userDoc = doc(db, "users", userId);
-        await setDoc(userDoc, { progress }, { merge: true });
+        // Use setDoc without merge to ensure the entire progress object is replaced.
+        // This is critical for removing keys that were deleted in the local state
+        // (e.g., when restarting a quiz).
+        await setDoc(userDoc, { progress });
         setSyncError(null);
       } catch (e: any) {
         console.error("Firebase Sync Error:", e);
@@ -216,20 +219,29 @@ const App: React.FC = () => {
     const correct = currentQuestion.correctIndices;
     const isCorrect = selected.length === correct.length && selected.every(idx => correct.includes(idx));
 
-    setProgress(prev => ({
-      ...prev,
-      score: !isReviewMode && isCorrect ? prev.score + 1 : prev.score,
-      totalAnswered: !isReviewMode ? prev.totalAnswered + 1 : prev.totalAnswered,
-      results: {
+    setProgress(prev => {
+      const newResults = {
         ...prev.results,
         [currentQuestion.id]: {
           ...prev.results[currentQuestion.id],
           submitted: true,
           isCorrect
         }
-      }
-    }));
-  }, [currentQuestion, currentResult, isReviewMode]);
+      };
+
+      // Recalculate global stats to ensure they are always accurate and idempotent
+      const allResults = Object.values(newResults) as QuestionResult[];
+      const newTotalAnswered = allResults.filter(r => r.submitted).length;
+      const newScore = allResults.filter(r => r.submitted && r.isCorrect).length;
+
+      return {
+        ...prev,
+        score: newScore,
+        totalAnswered: newTotalAnswered,
+        results: newResults
+      };
+    });
+  }, [currentQuestion, currentResult]);
 
   const handleNext = useCallback(async () => {
     if (currentIndex < currentQuestionsSet.length - 1) {
@@ -331,33 +343,54 @@ const App: React.FC = () => {
     setAiExplanations({});
   };
 
-  const handleRestart = () => {
-    if (!activeQuizId) return;
-    const qIds = getQuestionsForQuiz(activeQuizId).map(q => q.id);
+  const restartQuizById = (quizId: string) => {
+    const questions = getQuestionsForQuiz(quizId);
+    const qIds = questions.map(q => q.id);
     
     setProgress(prev => {
       const newResults = { ...prev.results };
-      qIds.forEach(id => delete newResults[id]);
+      
+      // Remove all results for this quiz set
+      qIds.forEach(id => {
+        delete newResults[id];
+      });
       
       const newLastIndices = { ...prev.lastIndices };
-      delete newLastIndices[activeQuizId];
+      delete newLastIndices[quizId];
 
       const newQuizTimers = { ...prev.quizTimers };
-      delete newQuizTimers[activeQuizId];
+      delete newQuizTimers[quizId];
+
+      const newCompletedQuizzes = prev.completedQuizzes.filter(id => id !== quizId);
+
+      // Recalculate global stats from the new results object
+      const allResults = Object.values(newResults) as QuestionResult[];
+      const newTotalAnswered = allResults.filter(r => r.submitted).length;
+      const newScore = allResults.filter(r => r.submitted && r.isCorrect).length;
 
       return {
         ...prev,
+        score: newScore,
+        totalAnswered: newTotalAnswered,
         results: newResults,
         lastIndices: newLastIndices,
-        quizTimers: newQuizTimers
+        quizTimers: newQuizTimers,
+        completedQuizzes: newCompletedQuizzes
       };
     });
     
+    setActiveQuizId(quizId);
     setTimeLeft(QUIZ_DURATION);
     setCurrentIndex(0);
     setShowResults(false);
     setIsReviewMode(false);
     setAiExplanations({});
+  };
+
+  const handleRestart = () => {
+    if (activeQuizId) {
+      restartQuizById(activeQuizId);
+    }
   };
 
   const handleAskAi = async () => {
@@ -495,9 +528,23 @@ const App: React.FC = () => {
                     <span className="flex items-center gap-1.5"><i className="far fa-question-circle"></i> {quiz.questionCount} Questions</span>
                   </div>
 
-                  <Button onClick={() => selectQuiz(quiz.id)} className="w-full py-3.5">
+                  <Button 
+                    onClick={() => {
+                      if (isCompleted) {
+                        const confirmRetake = window.confirm("Are you sure you want to retake this quiz? Your previous progress for this set will be cleared.");
+                        if (confirmRetake) {
+                          restartQuizById(quiz.id);
+                        } else {
+                          selectQuiz(quiz.id);
+                        }
+                      } else {
+                        selectQuiz(quiz.id);
+                      }
+                    }} 
+                    className={`w-full py-3.5 transition-all duration-300 ${isCompleted ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200 dark:shadow-emerald-900/20' : ''}`}
+                  >
                     {isStarted && !isCompleted ? 'Resume Quiz' : isCompleted ? 'Retake Quiz' : 'Start Quiz'} 
-                    <i className={`fas ${isStarted && !isCompleted ? 'fa-forward' : 'fa-play'} ml-2 text-xs`}></i>
+                    <i className={`fas ${isStarted && !isCompleted ? 'fa-forward' : isCompleted ? 'fa-redo' : 'fa-play'} ml-2 text-xs`}></i>
                   </Button>
                 </div>
               </div>
