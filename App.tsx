@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { quizMetadata, getQuestionsForQuiz } from './data/mcqData';
+import { quizMetadata, getQuestionsForQuiz, allQuestions } from './data/mcqData';
 import { QuestionType, UserProgress, QuizMetadata, Question, QuizSubmission, QuestionResult } from './types';
 import QuestionCard from './components/QuestionCard';
 import Button from './components/Button';
@@ -14,6 +14,7 @@ const App: React.FC = () => {
   const [showResults, setShowResults] = useState(false);
   const [isReviewMode, setIsReviewMode] = useState(false);
   const [viewingSubmission, setViewingSubmission] = useState<QuizSubmission | null>(null);
+  const [sessionResults, setSessionResults] = useState<Record<string, QuestionResult>>({});
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   
@@ -161,33 +162,64 @@ const App: React.FC = () => {
     return () => clearTimeout(timeout);
   }, [progress, userId]);
 
+  const allMistakeIds = useMemo(() => {
+    const ids = new Set<string>();
+    // From current progress
+    (Object.entries(progress.results) as [string, QuestionResult][]).forEach(([id, res]) => {
+      if (res.submitted && !res.isCorrect) ids.add(id);
+    });
+    // From past submissions
+    pastSubmissions.forEach(sub => {
+      (Object.entries(sub.results) as [string, QuestionResult][]).forEach(([id, res]) => {
+        if (res.submitted && !res.isCorrect) ids.add(id);
+      });
+    });
+    return Array.from(ids);
+  }, [progress.results, pastSubmissions]);
+
   const currentQuestionsSet = useMemo(() => {
     if (!activeQuizId) return [];
-    const fullSet = getQuestionsForQuiz(activeQuizId);
+    
+    let baseSet: Question[] = [];
+    if (activeQuizId === 'mistakes') {
+      baseSet = allQuestions.filter(q => allMistakeIds.includes(q.id));
+    } else {
+      baseSet = getQuestionsForQuiz(activeQuizId);
+    }
+
     if (isReviewMode) {
       const resultsSource = viewingSubmission ? viewingSubmission.results : progress.results;
-      return fullSet.filter(q => resultsSource[q.id] && !resultsSource[q.id].isCorrect);
+      return baseSet.filter(q => resultsSource[q.id] && !resultsSource[q.id].isCorrect);
     }
-    return fullSet;
-  }, [activeQuizId, isReviewMode, progress.results, viewingSubmission]);
+    return baseSet;
+  }, [activeQuizId, isReviewMode, progress.results, viewingSubmission, allMistakeIds]);
 
   const currentQuestion = currentQuestionsSet[currentIndex];
   
   const currentResult = useMemo(() => {
     if (!currentQuestion) return { selectedIndices: [], isCorrect: false, submitted: false };
+    
+    if (activeQuizId === 'mistakes') {
+      return sessionResults[currentQuestion.id] || { 
+        selectedIndices: [], 
+        isCorrect: false, 
+        submitted: false 
+      };
+    }
+
     const resultsSource = viewingSubmission ? viewingSubmission.results : progress.results;
     return resultsSource[currentQuestion.id] || { 
       selectedIndices: [], 
       isCorrect: false, 
       submitted: false 
     };
-  }, [currentQuestion, progress.results, viewingSubmission]);
+  }, [currentQuestion, progress.results, viewingSubmission, activeQuizId, sessionResults]);
 
   const handleSelect = useCallback((index: number) => {
     if (currentResult.submitted || !currentQuestion) return;
 
-    setProgress(prev => {
-      const existing = prev.results[currentQuestion.id]?.selectedIndices || [];
+    const updateState = (prevResults: Record<string, QuestionResult>) => {
+      const existing = prevResults[currentQuestion.id]?.selectedIndices || [];
       let newSelected: number[];
 
       if (currentQuestion.type === QuestionType.SINGLE) {
@@ -199,19 +231,25 @@ const App: React.FC = () => {
       }
 
       return {
-        ...prev,
-        results: {
-          ...prev.results,
-          [currentQuestion.id]: {
-            ...prev.results[currentQuestion.id],
-            selectedIndices: newSelected,
-            submitted: false,
-            isCorrect: false
-          }
+        ...prevResults,
+        [currentQuestion.id]: {
+          ...prevResults[currentQuestion.id],
+          selectedIndices: newSelected,
+          submitted: false,
+          isCorrect: false
         }
       };
-    });
-  }, [currentQuestion, currentResult.submitted]);
+    };
+
+    if (activeQuizId === 'mistakes') {
+      setSessionResults(prev => updateState(prev));
+    } else {
+      setProgress(prev => ({
+        ...prev,
+        results: updateState(prev.results)
+      }));
+    }
+  }, [currentQuestion, currentResult.submitted, activeQuizId]);
 
   const handleSubmit = useCallback(() => {
     if (!currentQuestion) return;
@@ -219,29 +257,50 @@ const App: React.FC = () => {
     const correct = currentQuestion.correctIndices;
     const isCorrect = selected.length === correct.length && selected.every(idx => correct.includes(idx));
 
-    setProgress(prev => {
-      const newResults = {
-        ...prev.results,
+    const updateResults = (prevResults: Record<string, QuestionResult>) => {
+      return {
+        ...prevResults,
         [currentQuestion.id]: {
-          ...prev.results[currentQuestion.id],
+          ...prevResults[currentQuestion.id],
           submitted: true,
           isCorrect
         }
       };
+    };
 
-      // Recalculate global stats to ensure they are always accurate and idempotent
-      const allResults = Object.values(newResults) as QuestionResult[];
-      const newTotalAnswered = allResults.filter(r => r.submitted).length;
-      const newScore = allResults.filter(r => r.submitted && r.isCorrect).length;
+    if (activeQuizId === 'mistakes') {
+      setSessionResults(prev => updateResults(prev));
+      // Also update global progress if they got it right
+      if (isCorrect) {
+        setProgress(prev => {
+          const newResults = updateResults(prev.results);
+          const allResults = Object.values(newResults) as QuestionResult[];
+          const newTotalAnswered = allResults.filter(r => r.submitted).length;
+          const newScore = allResults.filter(r => r.submitted && r.isCorrect).length;
+          return {
+            ...prev,
+            score: newScore,
+            totalAnswered: newTotalAnswered,
+            results: newResults
+          };
+        });
+      }
+    } else {
+      setProgress(prev => {
+        const newResults = updateResults(prev.results);
+        const allResults = Object.values(newResults) as QuestionResult[];
+        const newTotalAnswered = allResults.filter(r => r.submitted).length;
+        const newScore = allResults.filter(r => r.submitted && r.isCorrect).length;
 
-      return {
-        ...prev,
-        score: newScore,
-        totalAnswered: newTotalAnswered,
-        results: newResults
-      };
-    });
-  }, [currentQuestion, currentResult]);
+        return {
+          ...prev,
+          score: newScore,
+          totalAnswered: newTotalAnswered,
+          results: newResults
+        };
+      });
+    }
+  }, [currentQuestion, currentResult, activeQuizId]);
 
   const handleNext = useCallback(async () => {
     if (currentIndex < currentQuestionsSet.length - 1) {
@@ -341,6 +400,17 @@ const App: React.FC = () => {
     setShowResults(false);
     setCurrentIndex(0);
     setAiExplanations({});
+  };
+
+  const startMistakesPractice = () => {
+    if (allMistakeIds.length === 0) return;
+    setSessionResults({});
+    setActiveQuizId('mistakes');
+    setCurrentIndex(0);
+    setShowResults(false);
+    setIsReviewMode(false);
+    setAiExplanations({});
+    setTimeLeft(null); // No timer for mistakes practice
   };
 
   const restartQuizById = (quizId: string) => {
@@ -474,6 +544,23 @@ const App: React.FC = () => {
           <h1 className="text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-2 text-center w-full">ServiceNow CAD Practice</h1>
           <p className="text-lg text-slate-600 dark:text-slate-400">Unified progress synced across all your devices.</p>
           
+          {allMistakeIds.length > 0 && (
+            <div className="mt-8 p-6 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/30 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <div className="flex items-center gap-4 text-left">
+                <div className="w-12 h-12 bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-2xl flex items-center justify-center text-xl shrink-0">
+                  <i className="fas fa-exclamation-circle"></i>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Practice Your Mistakes</h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">You have {allMistakeIds.length} questions to review from previous attempts.</p>
+                </div>
+              </div>
+              <Button onClick={startMistakesPractice} className="bg-rose-600 hover:bg-rose-700 shadow-rose-200 dark:shadow-rose-900/20 whitespace-nowrap">
+                Start Reviewing <i className="fas fa-arrow-right ml-2 text-xs"></i>
+              </Button>
+            </div>
+          )}
+
           {syncError ? (
             <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-xl text-amber-800 dark:text-amber-300 text-sm flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
               <i className="fas fa-exclamation-triangle text-amber-500 text-lg"></i>
@@ -674,7 +761,7 @@ const App: React.FC = () => {
           </button>
           <div className="flex flex-col items-center">
             <div className="text-sm font-bold text-slate-800 dark:text-white tracking-tight text-center">
-              {isReviewMode ? 'Review Mode' : quizMetadata.find(m => m.id === activeQuizId)?.title}
+              {activeQuizId === 'mistakes' ? 'Mistakes Practice' : (isReviewMode ? 'Review Mode' : quizMetadata.find(m => m.id === activeQuizId)?.title)}
             </div>
             <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">
               Question {currentIndex + 1} of {currentQuestionsSet.length}
